@@ -36,8 +36,23 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > mirror-key.pem
           chmod 400 mirror-key.pem
           
+      - name: SSH into EC2 and install Docker
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          key_path: mirror-key.pem
+          port: 22
+          script: |
+            sudo yum update -y
+            sudo amazon-linux-extras install docker
+            sudo service docker start
+            sudo usermod -a -G docker ${{ secrets.EC2_USER }}
+            sudo systemctl enable docker
+
       - name: SSH into EC2 and deploy
-        uses: appleboy/ssh-action@v0.1.2
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
