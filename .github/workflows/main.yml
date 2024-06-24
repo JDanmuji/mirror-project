@@ -42,15 +42,16 @@ jobs:
 
       - name: Set SSH key permissions
         run: |
-          echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
-          chmod 400 key.pem
+          echo "${{ secrets.EC2_SSH_KEY }}" > mirror-key.pem
+          chmod 400 mirror-key.pem
 
       - name: SSH into EC2 and install Docker
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: key.pem
+          key: ${{ secrets.EC2_SSH_KEY }}
+          key_path: mirror-key.pem
           port: 22
           script: |
             sudo yum update -y
@@ -68,7 +69,8 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: key.pem
+          key: ${{ secrets.EC2_SSH_KEY }}
+          key_path: mirror-key.pem
           port: 22
           script: |
             echo "ECR_REGISTRY: $ECR_REGISTRY"
