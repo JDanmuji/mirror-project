@@ -1,16 +1,16 @@
-name: Push to Amazon ECR
+name: Push to Amazon ECR and Deploy to EC2
 on:
   push:
     branches:
       - main
 
 jobs:
-  build-and-push:
+  build-push-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-  
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -22,12 +22,18 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
+      - name: Set ECR_REGISTRY variable
+        run: echo "ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
+
       - name: Build, tag, and push image to ECR
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
           IMAGE_TAG: latest
         run: |
+          echo "ECR_REGISTRY: $ECR_REGISTRY"
+          echo "ECR_REPOSITORY: $ECR_REPOSITORY"
+          echo "IMAGE_TAG: $IMAGE_TAG"
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
@@ -35,14 +41,13 @@ jobs:
         run: |
           echo "${{ secrets.EC2_SSH_KEY }}" > mirror-key.pem
           chmod 400 mirror-key.pem
-          
+
       - name: SSH into EC2 and install Docker
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          key_path: mirror-key.pem
+          key: mirror-key.pem
           port: 22
           script: |
             sudo yum update -y
@@ -54,14 +59,13 @@ jobs:
       - name: SSH into EC2 and deploy
         uses: appleboy/ssh-action@master
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
           IMAGE_TAG: latest
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          key_path: mirror-key.pem
+          key: mirror-key.pem
           port: 22
           script: |
             echo "ECR_REGISTRY: $ECR_REGISTRY"
