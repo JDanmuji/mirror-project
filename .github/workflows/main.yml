@@ -1,16 +1,16 @@
-name: Push to Amazon ECR
+name: Push to Amazon ECR and Deploy to EC2
 on:
   push:
     branches:
       - main
 
 jobs:
-  build-and-push:
+  build-push-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-  
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -25,27 +25,32 @@ jobs:
       - name: Set ECR_REGISTRY variable
         run: echo "ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
 
+      - name: Verify ECR_REGISTRY
+        run: echo ${{ env.ECR_REGISTRY }}
+
       - name: Build, tag, and push image to ECR
         env:
           ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
           IMAGE_TAG: latest
         run: |
+          echo "ECR_REGISTRY: $ECR_REGISTRY"
+          echo "ECR_REPOSITORY: $ECR_REPOSITORY"
+          echo "IMAGE_TAG: $IMAGE_TAG"
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Set SSH key permissions
         run: |
-          echo "${{ secrets.EC2_SSH_KEY }}" > mirror-key.pem
-          chmod 400 mirror-key.pem
-          
+          echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
+          chmod 400 key.pem
+
       - name: SSH into EC2 and install Docker
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          key_path: mirror-key.pem
+          key: key.pem
           port: 22
           script: |
             sudo yum update -y
@@ -63,12 +68,14 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          key_path: mirror-key.pem
+          key: key.pem
           port: 22
           script: |
             echo "ECR_REGISTRY: $ECR_REGISTRY"
             echo "ECR_REPOSITORY: $ECR_REPOSITORY"
             echo "IMAGE_TAG: $IMAGE_TAG"
+            aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin $ECR_REGISTRY
             docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+            docker stop $(docker ps -a -q --filter ancestor=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG) || true
+            docker rm $(docker ps -a -q --filter ancestor=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG) || true
             docker run -d -p 3000:3000 $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
