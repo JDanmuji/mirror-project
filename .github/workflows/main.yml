@@ -85,6 +85,9 @@ jobs:
             echo "region=us-east-2" >> ~/.aws/config
             aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin $ECR_REGISTRY
             docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-            docker stop $(docker ps -a -q --filter ancestor=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG) || true
-            docker rm $(docker ps -a -q --filter ancestor=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG) || true
+            docker stop $(docker ps -a -q --filter "ancestor=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG") || true
+            docker rm $(docker ps -a -q --filter "ancestor=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG") || true
+            # 포트 충돌을 피하기 위해 기존 컨테이너를 확인하고 정지
+            docker stop $(docker ps -q --filter "publish=3000") || true
+            docker rm $(docker ps -q --filter "publish=3000") || true
             docker run -d -p 3000:3000 $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
