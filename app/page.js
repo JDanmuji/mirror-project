@@ -21,7 +21,7 @@ const Page = () => {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>오늘 할일 체크</h1>
+      <h1 className={styles.title}>오늘 할일 체크하려고 합니다!</h1>
       <div className={styles.inputContainer}>
         <input 
           type="text" 
